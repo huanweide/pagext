@@ -537,6 +537,7 @@ function printHelp() {
   --max <n>                  按词数截断输出
   -o, --output <file>        写入文件而非 stdout
   -h, --help                 显示本帮助
+  --allow-private           允许抓取内网/回环地址（默认拒绝，防 SSRF）
 `
   );
 }
