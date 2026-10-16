@@ -9,13 +9,47 @@
 给 LLM 喂网页时，原始 HTML 把 token 浪费在标签、样式、脚本、导航上。**pagext 只留下正文**，转成结构化 Markdown，直接喂模型、进 RAG、做归档。
 
 ```bash
-# 一条命令：抓取 URL -> 干净 Markdown
-npx pagext https://example.com/article
+# 免安装直接跑（仓库 clone 下来就能用，无需 node_modules）
+node index.js https://example.com/article
 
 # 本地文件 / 管道
-pagext page.html
-cat page.html | pagext --stdin
+node index.js page.html
+cat page.html | node index.js --stdin
 ```
+
+---
+
+## 安装
+
+本项目**零 npm 依赖、单文件**，因此**没有发布到 npm registry**（实测 `npm view pagext` 返回 404）。
+用 npx 或 `npm i -g pagext` 目前都装不上，请用下面任一方式：
+
+```bash
+# 方式一：clone 后直接跑（推荐，零安装）
+git clone https://github.com/huanweide/pagext.git
+node pagext/index.js https://example.com
+
+# 方式二：全局安装（npm 会从 GitHub 直装，无需发布）
+npm install -g github:huanweide/pagext
+pagext https://example.com
+```
+
+要求 Node.js >= 18（用到内置 `https`、正则命名组等）。
+
+---
+
+## 退出码契约
+
+作为门禁 / 脚本组件使用时，请依赖这个约定：
+
+| 退出码 | 含义 |
+|--------|------|
+| `0` | 成功 |
+| `1` | 运行期错误（网络失败、文件读取失败等） |
+| `2` | **用法错误**：未知选项、选项缺取值、`--max` 非正整数、`--format` 非法值、缺少输入 |
+
+参数写错时**不会静默继续**——例如把 `--stdin` 拼成 `--stin`，CLI 会退 2 并提示未知选项，
+而不是悄悄跳过 stdin 逻辑、给出一份你以为来自管道其实来自文件的结果。
 
 ---
 
@@ -36,21 +70,9 @@ cat page.html | pagext --stdin
 
 ---
 
-## 安装
-
-```bash
-# 全局安装
-npm install -g pagext
-
-# 或免安装直接用
-npx pagext https://example.com
-```
-
-要求 Node.js >= 18（用到内置 `https`、正则命名组等）。
-
----
-
 ## 用法
+
+下文示例用 `pagext` 指代 CLI。若未全局安装，请把它替换成 `node /path/to/pagext/index.js`。
 
 ```bash
 # 抓取 URL 并输出 Markdown
@@ -79,6 +101,9 @@ cat article.html | pagext --stdin
 
 # 写入文件
 pagext https://example.com/article -o article.md
+
+# 抓取内网/回环地址（默认拒绝，防 SSRF；确知目标安全时再开）
+pagext http://192.168.1.10/status --allow-private
 ```
 
 ### 与工具链组合
@@ -139,19 +164,31 @@ LLM 喂料、RAG 建库、Agent 网页读取在 2025–2026 爆发，对"轻量�
 
 ---
 
-## License
-
-MIT
-
----
-
 ## 作者
 
 由 **ReTr · 樊斯瑞** 维护 · [GitHub 主页](https://github.com/huanweide)
 
+---
+
 ## CI 门禁用法
 
-开箱即可接入 CI：在流水线中运行本工具，它会输出健康分与严重度；若存在不达标项会以非 0 退出码结束，从而拦下问题提交（具体参数见上方「快速开始」）。
+pagext 本身不是「健康分」类门禁工具（本仓库其它项目的模板文案不要复制到这里）。
+它在流水线里的正确用法是**输出体量断言**——把抓取结果当输入，检查它是否干净、够短、没把导航噪声漏进来：
+
+```bash
+# 1) 页面上限：正文超过 N 词说明噪声没剔干净，直接拦下
+words=$(pagext "$URL" --format text | wc -w)
+[ "$words" -gt 3000 ] && { echo "正文 $words 词，超出预期，疑似提取失效"; exit 1; }
+
+# 2) 必须包含关键内容：抽不到正文说明选择器失配
+pagext "$URL" | grep -q '关键短语' || { echo "未抽到正文"; exit 1; }
+
+# 3) 用退出码契约：参数写错退 2，CI 里可区分「用错了」和「跑挂了」
+pagext "$URL" --max abc || exit $?    # -> 2
+```
+
+本仓库自身的 CI（`.github/workflows/verify.yml`）做的是：Node 18/20/22 × ubuntu/windows
+的单元测试 + CLI 冒烟 + 零依赖自证 + README 与实现一致性检查。
 
 ## 赞助支持
 
