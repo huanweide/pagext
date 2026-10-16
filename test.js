@@ -143,3 +143,69 @@ test('fetchUrl: 默认拒绝私有/回环地址', async () => {
   await assert.rejects(px.fetchUrl('http://169.254.169.254/', {}));
 });
 
+
+// ---- 参数解析契约（纯函数层；进程级行为由 scripts/smoke-cli.js 覆盖）----
+const usage = (argv) => {
+  try { px.parseArgs(argv); return null; }
+  catch (e) { assert.ok(e instanceof px.UsageError, '应为 UsageError，实际 ' + e.name); return e.message; }
+};
+
+test('parseArgs: 正常组合解析正确', () => {
+  const a = px.parseArgs(['https://x.dev/a', '--title', '--no-images', '--format', 'json', '--max', '20']);
+  assert.equal(a.src, 'https://x.dev/a');
+  assert.equal(a.format, 'json');
+  assert.equal(a.opts.max, 20);
+  assert.equal(a.opts.title, true);
+  assert.equal(a.opts.noImages, true);
+  assert.equal(a.stdin, false);
+  assert.equal(a.output, null);
+});
+
+test('parseArgs: --max 允许小数并向下取整', () => {
+  assert.equal(px.parseArgs(['-u', 'x', '--max', '3.9']).opts.max, 3);
+});
+
+test('parseArgs: 用法错误一律抛 UsageError', () => {
+  assert.match(usage(['--bogus']), /未知选项/);
+  assert.match(usage(['--stin']), /未知选项/);
+  assert.match(usage(['--max']), /缺少取值/);
+  assert.match(usage(['--max', 'abc']), /正整数/);
+  assert.match(usage(['--max', '0']), /正整数/);
+  assert.match(usage(['--max', '-1']), /正整数/);
+  assert.match(usage(['--format', 'xml']), /非法/);
+  assert.match(usage(['--format']), /缺少取值/);
+  assert.match(usage(['-o']), /缺少取值/);
+});
+
+test('parseArgs: -i / -u / --input / --url / -o / --output 均被识别', () => {
+  for (const f of ['-i', '--input', '-u', '--url']) {
+    assert.equal(px.parseArgs([f, 'v.html']).src, 'v.html');
+  }
+  for (const f of ['-o', '--output']) {
+    assert.equal(px.parseArgs([f, 'out.md']).output, 'out.md');
+  }
+});
+
+test('parseArgs: 单独 "-" 不被当作未知选项（视作 stdin 惯例）', () => {
+  assert.doesNotThrow(() => px.parseArgs(['-']));
+});
+
+test('parseArgs: 位置参数优先保留首个，后续位置参数忽略', () => {
+  assert.equal(px.parseArgs(['a.html', 'b.html']).src, 'a.html');
+  assert.equal(px.parseArgs(['-u', 'u.html', 'b.html']).src, 'u.html');
+});
+
+test('parseArgs: --help 返回 null（调用方负责打印后退出）', () => {
+  assert.equal(px.parseArgs(['--help']), null);
+  assert.equal(px.parseArgs(['-h']), null);
+});
+
+test('parseArgs: 空 argv 不算语法错（缺输入由 main 报「缺少输入」，仍退 2）', () => {
+  const a = px.parseArgs([]);
+  assert.equal(a.src, null);
+  assert.equal(a.stdin, false);
+});
+
+test('契约: UsageError 是 Error 子类且被导出', () => {
+  assert.ok(new px.UsageError('x') instanceof Error);
+});

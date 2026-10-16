@@ -1,0 +1,46 @@
+name: verify
+on:
+  push:
+    branches: [master]
+  pull_request:
+jobs:
+  verify:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ['18', '20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: 单元测试（零依赖，无需 npm install）
+        run: node --test test.js
+      - name: CLI 冒烟（退出码契约 + stdout 完整性）
+        run: node scripts/smoke-cli.js
+      - name: 零依赖自证（node_modules 必须不存在）
+        shell: bash
+        run: |
+          if [ -d node_modules ]; then echo "::error::出现 node_modules，零依赖声明被打破"; exit 1; fi
+          echo "零依赖 OK"
+      - name: README 与实际行为一致
+        shell: bash
+        run: |
+          # README 不得在「可执行命令」里教用户安装未发布到 npm 的包。
+          # 注意只检查 bash 代码块内的裸命令；正文里说明「装不上」不算违规。
+          if awk '/^```bash/{b=1;next} /^```/{b=0} b' README.md \
+             | grep -nE '(^|[|;&(] *)npx pagext|npm i(nstall)? -g pagext'; then
+            echo "::error::README 的可执行示例里仍在安装未发布到 npm 的包"; exit 1
+          fi
+          # README 列出的每个长选项都必须在源码里真实存在
+          # （拼错示例如 --stin 属刻意反例，从检查中排除）
+          missing=0
+          for opt in $(grep -oE '\-\-[a-z][a-z-]+' README.md | sort -u); do
+            case "$opt" in --stin) continue;; esac
+            if ! grep -q -- "'$opt'" index.js; then
+              echo "::error::README 提到 $opt 但 index.js 未实现"; missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] && echo "README 选项全部可实现"

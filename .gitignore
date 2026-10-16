@@ -3,3 +3,18 @@ npm-debug.log*
 *.log
 .DS_Store
 .coverage/
+
+# 凭据与登录态（本项目零依赖、无配置，但仓库级防护保持一致）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+credentials.json
+token.json
+*.sqlite
+*.db

@@ -542,43 +542,69 @@ function printHelp() {
   );
 }
 
-function main() {
-  const argv = process.argv.slice(2);
-  let src = null;
-  let output = null;
-  let format = 'md';
-  let stdin = false;
+function parseArgs(argv) {
   const opts = {};
+  const out = { src: null, output: null, format: 'md', stdin: false, opts };
+  const FORMATS = ['md', 'text', 'json'];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--stdin') stdin = true;
-    else if (a === '-i' || a === '--input') src = argv[++i];
-    else if (a === '-u' || a === '--url') src = argv[++i];
+    if (a === '--stdin') out.stdin = true;
+    else if (a === '-i' || a === '--input' || a === '-u' || a === '--url' || a === '--format' || a === '-o' || a === '--output' || a === '--max') {
+      const val = argv[++i];
+      if (val === undefined) throw new UsageError(`选项 ${a} 缺少取值`);
+      if (a === '-o' || a === '--output') out.output = val;
+      else if (a === '--format') {
+        if (!FORMATS.includes(val)) throw new UsageError(`--format 取值非法：${val}（可选 ${FORMATS.join(' / ')}）`);
+        out.format = val;
+      } else if (a === '--max') {
+        const n = Number(val);
+        if (!Number.isFinite(n) || n <= 0) throw new UsageError(`--max 需要正整数，收到：${val}`);
+        opts.max = Math.floor(n);
+      } else out.src = val;
+    }
     else if (a === '--title') opts.title = true;
     else if (a === '--no-images') opts.noImages = true;
     else if (a === '--allow-private') opts.allowPrivate = true;
-    else if (a === '--format') format = argv[++i];
-    else if (a === '-o' || a === '--output') output = argv[++i];
-    else if (a === '--max') opts.max = parseInt(argv[++i], 10);
-    else if (a === '-h' || a === '--help') { printHelp(); return; }
-    else if (!a.startsWith('-')) src = src || a;
+    else if (a === '-h' || a === '--help') { printHelp(); return null; }
+    else if (a.startsWith('-') && a !== '-') throw new UsageError(`未知选项：${a}（用 --help 查看用法）`);
+    else out.src = out.src || a;
   }
+  return out;
+}
+
+/** 参数用法错误：应退 2（区别于运行期错误退 1） */
+class UsageError extends Error {}
+
+function main() {
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (e) {
+    if (!(e instanceof UsageError)) throw e;
+    process.stderr.write(e.message + '\n');
+    process.exitCode = 2;
+    return;
+  }
+  if (args === null) return;
+  const src = args.src;
+  const output = args.output;
+  const format = args.format;
+  const stdin = args.stdin;
+  const opts = args.opts;
 
   (async () => {
     let html;
     if (stdin) {
       html = fs.readFileSync(0, 'utf8');
     } else if (!src) {
-      process.stderr.write('缺少输入：URL / 文件路径 / --stdin\n');
-      process.exit(2);
+      throw new UsageError('缺少输入：URL / 文件路径 / --stdin');
     } else if (/^https?:\/\//i.test(src)) {
       html = await fetchUrl(src, opts);
       opts.url = src;
     } else if (fs.existsSync(src)) {
       html = fs.readFileSync(src, 'utf8');
     } else {
-      process.stderr.write('文件不存在，且输入非 URL/HTML：' + src + '\n');
-      process.exit(2);
+      throw new UsageError('文件不存在，且输入非 URL/HTML：' + src);
     }
 
     if (!html || !html.trim()) {
@@ -594,8 +620,13 @@ function main() {
     if (output) fs.writeFileSync(output, out + '\n');
     else process.stdout.write(out + '\n');
   })().catch((e) => {
+    if (e instanceof UsageError) {
+      process.stderr.write(e.message + '\n');
+      process.exitCode = 2;
+      return;
+    }
     process.stderr.write('错误: ' + e.message + '\n');
-    process.exit(1);
+    process.exitCode = 1;
   });
 }
 
@@ -603,6 +634,7 @@ module.exports = {
   tokenize, buildTree, decodeEntities, getText, textLength,
   scoreNode, extractContent, prune, extractMeta, sanitizeUrl,
   serializeBlock, convert, fetchUrl,
+  UsageError, parseArgs,
 };
 
 if (require.main === module) main();
