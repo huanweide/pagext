@@ -6,6 +6,8 @@
   <a href="#为什么是-pagext而不是别的">30 秒看懂</a> · <a href="#用法">用法</a> · <a href="#作为库使用">API</a> · <a href="#提取质量说明">边界</a> · <a href="#ci-门禁用法">CI</a>
 </p>
 
+> English: 暂未提供
+
 # pagext
 
 > 零依赖、纯 Node 单文件网页正文提取器。一条命令把任意网页 / 本地 HTML / stdin 变成干净 Markdown。
@@ -174,7 +176,7 @@ LLM 喂料、RAG 建库、Agent 网页读取在 2025–2026 爆发，对"轻量�
 
 ## 作者
 
-由 **ReTr · huanweide** 维护 · [GitHub 主页](https://github.com/huanweide)
+由 **huanweide** 维护 · [GitHub 主页](https://github.com/huanweide)
 
 ---
 
