@@ -6,7 +6,7 @@
   <a href="#为什么是-pagext而不是别的">30 秒看懂</a> · <a href="#用法">用法</a> · <a href="#作为库使用">API</a> · <a href="#提取质量说明">边界</a> · <a href="#ci-门禁用法">CI</a>
 </p>
 
-> English: 暂未提供
+**English** · [README_EN.md](./README_EN.md)
 
 # pagext
 
